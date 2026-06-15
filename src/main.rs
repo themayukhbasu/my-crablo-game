@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use macroquad::prelude::*;
+use std::collections::VecDeque;
 
 const MAP: usize = 20;
 const T_SIZE: (f32, f32) = (32., 16.); // tile size
@@ -31,6 +32,43 @@ fn to_tile(sx: f32, sy: f32, cam: (f32, f32)) -> (usize, usize) {
         ((ax / T_SIZE.0 + ay / T_SIZE.1) / 2.) as usize,
         ((ay / T_SIZE.1 - ax / T_SIZE.0) / 2.) as usize,
     )
+}
+
+// Pathfinding algo
+fn bfs(
+    map: &[[Tile; MAP]; MAP],
+    start: (usize, usize),
+    goal: (usize, usize),
+) -> Vec<(usize, usize)> {
+    let mut q = VecDeque::from([start]);
+    let mut visited = [[false; MAP]; MAP];
+    visited[start.1][start.0] = true;
+
+    let mut parent = [[None; MAP]; MAP];
+    while let Some(curr) = q.pop_front() {
+        if curr == goal {
+            let mut path = vec![];
+            let mut c = goal;
+            while c != start {
+                path.push(c);
+                c = parent[c.1][c.0].unwrap();
+            }
+            path.reverse();
+            return path;
+        }
+
+        // check neighbors
+        for (dx, dy) in [(0, 1), (1, 0), (0, -1), (-1, 0)] {
+            let (nx, ny) = ((curr.0 as i32 + dx) as usize, (curr.1 as i32 + dy) as usize);
+            if nx < MAP && ny < MAP && !visited[ny][nx] && map[ny][nx] == Tile::Floor {
+                visited[ny][nx] = true;
+                parent[ny][nx] = Some(curr);
+                q.push_back((nx, ny));
+            }
+        }
+    }
+
+    todo!()
 }
 
 // draw hero and monsters
@@ -94,7 +132,7 @@ struct Game {
     cam: (f32, f32),
     px: usize,
     py: usize,
-    target: Option<(usize, usize)>,
+    path: Vec<(usize, usize)>
 }
 
 impl Game {
@@ -118,7 +156,7 @@ impl Game {
             cam: (screen_width() / 2., 50.),
             px: 2,
             py: 2,
-            target: None,
+            path: vec![]
         }
     }
 
@@ -134,8 +172,8 @@ impl Game {
             let (tx, ty) = to_tile(mx, my, self.cam);
 
             // check if the click is inside the map bounds
-            if tx < MAP && ty < MAP {
-                self.target = Some((tx, ty));
+            if tx < MAP && ty < MAP && self.map[ty][tx] == Tile::Floor{
+                self.path = bfs(&self.map, (self.px, self.py),(tx, ty));
             }
         }
 
@@ -156,9 +194,9 @@ impl Game {
         }
 
         // draw the target
-        if let Some((tx, ty)) = self.target {
-            let (sx, sy) = to_screen(tx, ty, self.cam);
-            draw_circle(sx, sy + 16., 6., RED);
+        for (px, py) in &self.path {
+            let (sx, sy) = to_screen(*px, *py, self.cam);
+            draw_circle(sx, sy + 16., 4., RED);
         }
 
         // draw the player
