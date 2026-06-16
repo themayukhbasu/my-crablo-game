@@ -132,7 +132,8 @@ struct Game {
     cam: (f32, f32),
     px: usize,
     py: usize,
-    path: Vec<(usize, usize)>
+    path: Vec<(usize, usize)>,
+    player_cd: f32,
 }
 
 impl Game {
@@ -156,11 +157,12 @@ impl Game {
             cam: (screen_width() / 2., 50.),
             px: 2,
             py: 2,
-            path: vec![]
+            path: vec![],
+            player_cd: 0.,
         }
     }
 
-    fn update(&mut self, _dt: f32) -> bool {
+    fn update(&mut self, dt: f32) -> bool {
         // fake game logic
         if is_key_pressed(KeyCode::Space) {
             return true;
@@ -172,8 +174,23 @@ impl Game {
             let (tx, ty) = to_tile(mx, my, self.cam);
 
             // check if the click is inside the map bounds
-            if tx < MAP && ty < MAP && self.map[ty][tx] == Tile::Floor{
-                self.path = bfs(&self.map, (self.px, self.py),(tx, ty));
+            if tx < MAP && ty < MAP && self.map[ty][tx] == Tile::Floor {
+                self.path = bfs(&self.map, (self.px, self.py), (tx, ty));
+            }
+        }
+
+        // handle player movement
+        if !self.path.is_empty() {
+            self.player_cd -= dt;
+
+            // time to move ?
+            if self.player_cd <= 0. {
+                self.player_cd = 0.15;
+
+                let next_step = self.path[0];
+                self.px = next_step.0;
+                self.py = next_step.1;
+                self.path.remove(0);
             }
         }
 
