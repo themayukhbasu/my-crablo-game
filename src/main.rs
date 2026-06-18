@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use macroquad::miniquad::native::apple::frameworks::sel;
 use macroquad::prelude::*;
 use std::collections::VecDeque;
 use std::fmt::format;
