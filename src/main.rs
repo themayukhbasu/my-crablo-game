@@ -164,6 +164,8 @@ struct Game {
     monsters: Vec<Monster>,
     texts: Vec<DmgText>,
     hp: i32,
+    gold: Vec<(usize, usize)>,
+    score: i32,
 }
 
 impl Game {
@@ -211,10 +213,17 @@ impl Game {
             ],
             texts: vec![],
             hp: 100,
+            gold: vec![(3, 3), (10, 2), (16, 5), (6, 14), (17, 17)],
+            score: 0,
         }
     }
 
     fn update(&mut self, dt: f32) -> bool {
+        // victory / loss condition
+        if self.hp <= 0 || self.monsters.is_empty() {
+            return true;
+        }
+
         // game logic
         if self.hp <= 0 {
             return true;
@@ -259,6 +268,20 @@ impl Game {
                     self.path.remove(0);
                     self.px = nx;
                     self.py = ny;
+
+                    // collect gold logic
+                    if let Some(i) = self.gold.iter().position(|&g| g == (self.px, self.py)) {
+                        self.gold.remove(i);
+                        self.score += 100;
+                        // spawn green text
+                        let (sx, sy) = to_screen(self.px, self.py, self.cam);
+                        self.texts.push(DmgText {
+                            x: sx,
+                            y: sy - 40.,
+                            dmg: -100,
+                            life: 1.,
+                        })
+                    }
                 }
             }
         }
@@ -285,7 +308,7 @@ impl Game {
                     self.texts.push(DmgText {
                         x: sx,
                         y: sy - 40.,
-                        dmg: -5,
+                        dmg: 5,
                         life: 1.,
                     })
                 } else {
@@ -318,6 +341,8 @@ impl Game {
         // kill logic
         if self.monsters[idx].hp <= 0 {
             self.monsters.remove(idx);
+            // + 50 bonus score if killed monster
+            self.score += 50;
         }
     }
 
@@ -328,8 +353,14 @@ impl Game {
                 if self.map[y][x] == Tile::Wall {
                     draw_wall(x, y, self.cam);
                 } else {
-                    let (sx, sy) = to_screen(x, y, self.cam);
-                    draw_circle(sx, sy + 16., 2., LIGHTGRAY);
+                    // draw gold
+                    if self.gold.contains(&(x, y)) {
+                        let (sx, sy) = to_screen(x, y, self.cam);
+                        draw_circle(sx, sy + 16., 6., GOLD);
+                    } else {
+                        let (sx, sy) = to_screen(x, y, self.cam);
+                        draw_circle(sx, sy + 16., 2., LIGHTGRAY);
+                    }
                 }
             }
         }
@@ -337,7 +368,7 @@ impl Game {
         // draw the target
         for (px, py) in &self.path {
             let (sx, sy) = to_screen(*px, *py, self.cam);
-            draw_circle(sx, sy + 16., 4., GOLD);
+            draw_circle(sx, sy + 16., 4., LIGHTGRAY);
         }
 
         // draw the player
@@ -350,7 +381,12 @@ impl Game {
 
         // draw floating texts
         for t in &self.texts {
-            draw_text(&format!("-{}", t.dmg), t.x, t.y, 20., RED);
+            if t.dmg < 0 {
+                // score points
+                draw_text(&format!("+{}", -t.dmg), t.x, t.y, 20., GREEN);
+            } else {
+                draw_text(&format!("-{}", t.dmg), t.x, t.y, 20., RED);
+            }
         }
 
         // HUD
@@ -358,6 +394,13 @@ impl Game {
             &format!("HP: {}", self.hp),
             20.,
             screen_height() - 40.,
+            30.,
+            BLACK,
+        );
+        draw_text(
+            &format!("SCORE: {}", self.score),
+            20.,
+            screen_height() - 70.,
             30.,
             BLACK,
         );
@@ -395,11 +438,36 @@ async fn main() {
                     screen_height(),
                     Color::new(1., 1., 1., 0.7),
                 );
-                draw_text("Game Over", 100., 100., 60., RED);
+                // Victory vs Defeat Logic
+                let (msg, col) = if game.hp > 0 {
+                    ("VICTORY", GOLD)
+                } else {
+                    ("GAME OVER", RED)
+                };
 
-                draw_text(&format!("HP: {}", game.hp), 100., 160., 30., BLACK);
+                draw_text(
+                    msg,
+                    screen_width() / 2. - 100.,
+                    screen_height() / 2.,
+                    60.,
+                    col,
+                );
 
-                draw_text("Enter to reset", 100., 150., 20., GRAY);
+                draw_text(
+                    &format!("Final Score: {}", game.score),
+                    screen_width() / 2. - 80.,
+                    screen_height() / 2. + 50.,
+                    30.,
+                    BLACK,
+                );
+
+                draw_text(
+                    "Enter to reset",
+                    screen_width() / 2. - 80.,
+                    screen_height() / 2. + 90.,
+                    20.,
+                    GRAY,
+                );
 
                 if is_key_pressed(KeyCode::Enter) {
                     state = AppState::Menu;
